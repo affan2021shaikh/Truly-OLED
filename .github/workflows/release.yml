@@ -1,0 +1,81 @@
+name: Package and Release Theme
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag name for the release (strict semver, e.g. v1.2.3 or 1.2.3)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  package-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate tag is strict semver
+        run: |
+          TAG="${{ inputs.tag_name }}"
+          if ! [[ "$TAG" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Tag '$TAG' is not valid semver. Expected format: v1.2.3 or 1.2.3"
+            exit 1
+          fi
+
+      - name: Verify tag does not already exist
+        run: |
+          if git rev-parse "${{ inputs.tag_name }}" >/dev/null 2>&1; then
+            echo "::error::Tag '${{ inputs.tag_name }}' already exists. Choose a different tag name."
+            exit 1
+          fi
+          if gh release view "${{ inputs.tag_name }}" >/dev/null 2>&1; then
+            echo "::error::Release '${{ inputs.tag_name }}' already exists. Choose a different tag name."
+            exit 1
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify tag contains manifest version as substring
+        run: |
+          TAG="${{ inputs.tag_name }}"
+          MANIFEST_VERSION=$(jq -r '.version' theme/manifest.json)
+          if [ -z "$MANIFEST_VERSION" ] || [ "$MANIFEST_VERSION" == "null" ]; then
+            echo "::error::Could not read version from theme/manifest.json"
+            exit 1
+          fi
+          if [[ "$TAG" != *"$MANIFEST_VERSION"* ]]; then
+            echo "::error::Tag '$TAG' does not contain manifest.json version '$MANIFEST_VERSION' as a substring."
+            exit 1
+          fi
+          echo "Manifest version '$MANIFEST_VERSION' confirmed within tag '$TAG'."
+
+      - name: Package as .zip
+        run: |
+          cd theme
+          zip -X -r "../Perfectly-OLED-${{ inputs.tag_name }}.zip" .
+          cd ..
+
+      - name: Package as .xpi
+        run: |
+          cd theme
+          zip -X -r "../Perfectly-OLED-${{ inputs.tag_name }}.xpi" .
+          cd ..
+
+      - name: Create git tag
+        run: |
+          git tag "${{ inputs.tag_name }}"
+          git push origin "${{ inputs.tag_name }}"
+
+      - name: Create GitHub release with artifacts
+        run: |
+          gh release create "${{ inputs.tag_name }}" \
+            "Perfectly-OLED-${{ inputs.tag_name }}.zip" \
+            "Perfectly-OLED-${{ inputs.tag_name }}.xpi" \
+            --title "${{ inputs.tag_name }}" \
+            --notes "Automated packaging of theme/ folder as .zip and .xpi"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
