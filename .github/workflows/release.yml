@@ -76,6 +76,6 @@ jobs:
             "Perfectly-OLED-${{ inputs.tag_name }}.zip" \
             "Perfectly-OLED-${{ inputs.tag_name }}.xpi" \
             --title "${{ inputs.tag_name }}" \
-            --notes "Automated packaging of theme/ folder as .zip and .xpi"
+            --notes "Automated packaging of `/theme/` folder as .zip and .xpi"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
