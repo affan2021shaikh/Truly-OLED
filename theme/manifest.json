@@ -4,8 +4,8 @@
   "name": "Perfectly OLED",
   "browser_specific_settings": {
     "gecko": {
-      "id": "Perfectly-OLED@affan2021shaikh.github.io"
-      "update_url": "https://github.com/affan2021shaikh/Perfectly-OLED/raw/refs/heads/main/theme/updates.json"
+      "id": "Perfectly-OLED@affan2021shaikh.github.io",
+      "update_url": "https://raw.githubusercontent.com/affan2021shaikh/Perfectly-OLED/main/theme/updates.json"
     }
   },
   "theme": {
