@@ -1,0 +1,88 @@
+name: Validate Manifest
+
+on:
+  push:
+    paths:
+      - 'theme/**'
+  pull_request:
+    paths:
+      - 'theme/**'
+  workflow_call:
+    inputs:
+      theme_dir:
+        description: "Path to the theme folder"
+        required: false
+        type: string
+        default: theme
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      THEME_DIR: ${{ inputs.theme_dir || 'theme' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check manifest.json exists
+        run: |
+          if [ ! -f "${THEME_DIR}/manifest.json" ]; then
+            echo "::error::${THEME_DIR}/manifest.json not found."
+            exit 1
+          fi
+
+      - name: Validate manifest.json is well-formed JSON
+        run: |
+          python3 -c "import json; json.load(open('${THEME_DIR}/manifest.json'))" \
+            || { echo "::error::${THEME_DIR}/manifest.json is not valid JSON."; exit 1; }
+
+      - name: Validate required manifest fields
+        run: |
+          python3 - "${THEME_DIR}/manifest.json" <<'EOF'
+          import json, sys
+
+          path = sys.argv[1]
+          with open(path) as f:
+              data = json.load(f)
+
+          errors = []
+
+          if data.get("manifest_version") != 2:
+              errors.append("manifest_version must be 2 for a Firefox theme.")
+
+          if "version" not in data:
+              errors.append("Missing top-level 'version' field.")
+
+          gecko = data.get("browser_specific_settings", {}).get("gecko", {})
+          if "id" not in gecko:
+              errors.append("Missing browser_specific_settings.gecko.id (extension ID).")
+          if "update_url" not in gecko:
+              errors.append("Missing browser_specific_settings.gecko.update_url.")
+
+          if "theme" not in data:
+              errors.append("Missing top-level 'theme' field.")
+          else:
+              theme = data["theme"]
+              for key in ("images", "properties", "colors"):
+                  if key not in theme:
+                      errors.append(f"Missing theme.{key} field.")
+
+          if errors:
+              print("::error::Manifest validation failed:")
+              for e in errors:
+                  print(f"::error::- {e}")
+              sys.exit(1)
+
+          print("Manifest structure looks good.")
+          EOF
+
+      - name: Validate updates.json (if present) is well-formed JSON
+        run: |
+          UPDATES_FILE="${THEME_DIR}/updates.json"
+          if [ -f "$UPDATES_FILE" ]; then
+            python3 -c "import json; json.load(open('${UPDATES_FILE}'))" \
+              || { echo "::error::${UPDATES_FILE} is not valid JSON."; exit 1; }
+            echo "updates.json is valid JSON."
+          else
+            echo "No updates.json present yet; skipping (this is fine pre-first-release)."
+          fi
