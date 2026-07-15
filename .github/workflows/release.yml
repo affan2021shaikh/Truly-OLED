@@ -105,6 +105,30 @@ jobs:
 
           echo "STAGE_DIR=$STAGE_DIR" >> "$GITHUB_ENV"
 
+      - name: Package theme (no update_url zip)
+        run: |
+          set -euo pipefail
+          NO_UPDATE_STAGE_DIR="$(mktemp -d)/Truly-OLED-no-update-url"
+          mkdir -p "$NO_UPDATE_STAGE_DIR"
+          cp -r "${THEME_DIR}/." "$NO_UPDATE_STAGE_DIR/"
+
+          python3 - "$NO_UPDATE_STAGE_DIR/manifest.json" <<'EOF'
+          import json, sys
+
+          path = sys.argv[1]
+          with open(path) as f:
+              data = json.load(f)
+
+          gecko = data.get("browser_specific_settings", {}).get("gecko", {})
+          gecko.pop("update_url", None)
+
+          with open(path, "w") as f:
+              json.dump(data, f, indent=2)
+              f.write("\n")
+          EOF
+
+          ( cd "$NO_UPDATE_STAGE_DIR" && zip -r -X "${GITHUB_WORKSPACE}/dist/Truly-OLED-${SEMVER}-no-update-url.zip" . )
+
       - name: Install web-ext
         run: npm install --global web-ext
 
@@ -190,6 +214,7 @@ jobs:
             "dist/Truly-OLED-${SEMVER}.xpi" \
             "dist/Truly-OLED-${SEMVER}.zip" \
             "dist/Truly-OLED-${SEMVER}.tar.gz" \
+            "dist/Truly-OLED-${SEMVER}-no-update-url.zip" \
             --title "${TAG}" \
             --notes "${NOTES}" \
             ${{ env.TAG_EXISTS == 'true' && '--latest' || '' }}
