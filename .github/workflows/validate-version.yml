@@ -1,0 +1,58 @@
+name: Validate Version
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: "Semver to validate, e.g. 1.2.3 (no leading 'v')"
+        required: true
+        type: string
+      overwrite:
+        description: "Whether the caller intends to overwrite an existing tag/release"
+        required: false
+        type: boolean
+        default: false
+    outputs:
+      tag:
+        description: "The computed tag, e.g. v1.2.3"
+        value: ${{ jobs.validate.outputs.tag }}
+      tag_exists:
+        description: "'true' if the tag already exists"
+        value: ${{ jobs.validate.outputs.tag_exists }}
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.compute.outputs.tag }}
+      tag_exists: ${{ steps.check.outputs.tag_exists }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate semver format
+        id: compute
+        run: |
+          SEMVER="${{ inputs.version }}"
+          if [[ ! "$SEMVER" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::'$SEMVER' is not a valid semver (expected e.g. 1.2.3, without a leading 'v')."
+            exit 1
+          fi
+          echo "tag=v${SEMVER}" >> "$GITHUB_OUTPUT"
+
+      - name: Check whether tag already exists
+        id: check
+        run: |
+          TAG="${{ steps.compute.outputs.tag }}"
+          if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+            if [ "${{ inputs.overwrite }}" != "true" ]; then
+              echo "::error::Tag ${TAG} already exists. Re-run with 'overwrite: true' to replace it."
+              exit 1
+            fi
+            echo "Tag ${TAG} exists; overwrite=true was set, caller will replace it."
+            echo "tag_exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag_exists=false" >> "$GITHUB_OUTPUT"
+          fi
