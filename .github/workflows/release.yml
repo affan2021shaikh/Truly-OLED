@@ -42,6 +42,24 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Sync manifest.json version with release SEMVER
+        run: |
+          set -euo pipefail
+          python3 - "${THEME_DIR}/manifest.json" "${SEMVER}" <<'EOF'
+          import json, sys
+
+          path, version = sys.argv[1], sys.argv[2]
+          with open(path) as f:
+              data = json.load(f)
+
+          data["version"] = version
+
+          with open(path, "w") as f:
+              json.dump(data, f, indent=2)
+              f.write("\n")
+          EOF
+          echo "manifest.json version set to ${SEMVER}"
+
       - name: Update theme/updates.json
         run: |
           set -euo pipefail
@@ -80,15 +98,15 @@ jobs:
           echo "Updated ${UPDATES_FILE}:"
           cat "$UPDATES_FILE"
 
-      - name: Commit updates.json
+      - name: Commit manifest.json and updates.json
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add "${THEME_DIR}/updates.json"
+          git add "${THEME_DIR}/manifest.json" "${THEME_DIR}/updates.json"
           if git diff --cached --quiet; then
-            echo "No changes to updates.json to commit."
+            echo "No changes to manifest.json or updates.json to commit."
           else
-            git commit -m "chore: update updates.json for ${TAG}"
+            git commit -m "chore: bump version to ${SEMVER} and update updates.json for ${TAG}"
             git push origin HEAD:${{ github.ref_name }}
           fi
 
