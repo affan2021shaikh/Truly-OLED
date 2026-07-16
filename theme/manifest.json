@@ -1,6 +1,6 @@
 {
   "manifest_version": 2,
-  "version": "1.0.0",
+  "version": "1.1.2",
   "name": "Truly OLED",
   "browser_specific_settings": {
     "gecko": {
